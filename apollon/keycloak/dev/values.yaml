@@ -73,6 +73,6 @@ keycloak:
 
   probe:
     liveness:
-      httpPath: /admiin
+      httpPath: /admin
     startup:
       httpPath: /admin
