@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "api.fullname" . }}
+  {{- if .Values.deploy_statefulset.enabled }}
+  annotations:
+    traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.secure: "true"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.name: "sticky"
+    traefik.ingress.kubernetes.io/service.sticky.cookie.samesite: "none"
+    traefik.ingress.kubernetes.io/affinity: "true"
+  {{- end }}
+  labels:
+    {{- include "api.labels" . |nindent 4 }}
+spec:
+  loadBalancerIP: {{ .Values.service.ip }}
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8080
+  selector:
+        app: {{ include "api.fullname" . }}

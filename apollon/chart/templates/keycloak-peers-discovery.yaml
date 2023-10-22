@@ -1,0 +1,16 @@
+{{ if.Values.is_keycloak }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: apollon-keycloak-service
+  labels:
+    {{- include "api.labels" . |nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app: {{ include "api.fullname" . }}
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+{{- end }}

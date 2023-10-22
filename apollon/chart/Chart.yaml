@@ -1,0 +1,7 @@
+apiVersion: v2
+name: generic_chart
+description: Apollon generic chart for all kind of services
+
+type: application  #must not be applied in his raw form
+version: 0.1.0
+appVersion: "1.0.0"

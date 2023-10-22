@@ -1,0 +1,125 @@
+###
+# Defaults
+
+keyvaultName: kvdmpifgfrctest
+userAssignedIdentityID: e2c3cf1c-39b9-46ec-b61a-e4fb6bcbdecf
+tenantId: cfc76203-cdce-4901-a7bd-1e357c7956dc
+
+###
+# Templating
+
+featureTeamName: apollon
+
+image_template: &common_image
+  pullPolicy: IfNotPresent
+
+common_template: &common
+  aadPodIdBinding: aks-dmp-infogreffe-frc-test-agentpool
+  featureTeamName: apollon
+  autoscaling:
+    enabled: false #TODO rework it when in TEST
+
+env_template: &common_env
+  # base
+  APP_ENV: TEST
+  SERVER_PORT: "8080"
+  JAVA_OPTS: -Dfile.encoding=UTF-8
+  ACTIVATION_SWAGGER: false
+  SPRING_DATASOURCE_BASE_URL: psqlf-dmp-infogreffe-frc-preprod-apollon.postgres.database.azure.com
+  SPRING_DATASOURCE_PORT: "5432"
+  SPRING_DATASOURCE_PLATFORM: postgres
+  SPRING_DATASOURCE_INITIALIZATION_MODE: always
+  LOGGING_LEVEL_ROOT: DEBUG
+  LOGGING_LIQUIBASE: INFO
+  SPRING_BOOT_ADMIN_CLIENT_ENABLED: false
+  SPRING_BOOT_ADMIN_CLIENT_INSTANCE_PREFER_IP: true
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: 10
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: https://www.preprod-api.infogreffe.fr/apollon/keycloak/realms/infogreffe
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: https://www.preprod-api.infogreffe.fr/apollon/keycloak/realms/infogreffe/protocol/openid-connect/certs
+  # apollon specific
+  KEYCLOAK_REALM: infogreffe
+  KEYCLOAK_SERVER_URL: https://www.preprod-api.infogreffe.fr/apollon/keycloak
+  KEYCLOAK_CLIENT_ID: keycloak-rest
+  APPLICATION_MS_COMPTE_CLIENT_URL: http://apollon-compte-client.apollon.svc.cluster.local:8080/v1/comptes_clients
+  APOLLON_MS_UTILISATEURS_URL: http://apollon-utilisateur.apollon.svc.cluster.local:8080/v1/utilisateurs
+  UTILISATEUR_BASE_URL: http://apollon-utilisateur.apollon.svc.cluster.local:8080/v1/utilisateurs
+  HERMES_BASE_URL: https://www.preprod-api.infogreffe.fr/hermes/paniers/api
+  APPLICATION_ANONYMISATION_QUEUE: apollonservicebusanonymisationqueue
+  APPLICATION_MS_COMPTE_CLIENT_ANONYMIZATION_ENDPOINT: "http://apollon-compte-client.apollon.svc.cluster.local:8080/v1/comptes_clients/%s/anonymisation"
+  APPLICATION_MS_CREATE_SIGNATURE_ENDPOINT: "http://apollon-utilisateur.apollon.svc.cluster.local:8080/v1/signature"
+
+###
+# Micro-services
+
+keycloak:
+  <<: *common
+  nameOverride: keycloak
+  image:
+    <<: *common_image
+    repository: crdmpinfogreffefrcshared.azurecr.io/apollon-keycloak
+    tag: v1.0-SNAPSHOT-0d37f454adbd98c66d9c5c58c530ad8c26cf7b97-62930
+  replicaCount: 3
+  is_keycloak: true
+
+  resources:
+    limits:
+      cpu: 3500m
+      memory: 2048Mi
+    requests:
+      cpu: 800m
+      memory: 512Mi  
+
+  ## Deploy Keycloak Deployment Vs StatefulSet
+  deploy_statefulset:
+    enabled: true
+
+  env:
+    # KC_hostname-admin => The hostname for accessing the administration console.
+    # KC_hostname-admin-url => Set the base URL for accessing the administration console, including scheme, host, port and path
+    #KC_HOSTNAME: https://www.api.infogreffe.fr/
+    #KC_HOSTNAME_PATH: apollon/keycloak
+    KC_HOSTNAME_ADMIN_URL: https://www.preprod-api.infogreffe.fr/apollon/keycloak
+    KC_HOSTNAME_URL: https://www.preprod-api.infogreffe.fr/apollon/keycloak
+    #KC_HOSTNAME_PORT: 8080
+    KC_DB: postgres
+    KC_CACHE: local
+    KC_PROXY: edge
+    KC_HOSTNAME_STRICT: false
+    KC_SPI_EMAIL_TEMPLATE_APOLLON_MAIL_SENDER_BLACKLIST_EMAIL_PATTERNS: ".*(@mjl.gouv.fr)$"
+    KC_SPI_EVENTS_LISTENER_USER_PROFILE_UPDATE_EVENT_LISTENER_MS_COMPTE_CLIENT_BASE_URL: "http://apollon-compte-client.apollon.svc.cluster.local:8080/v1/comptes_clients"
+    KC_SPI_AUTHENTICATOR_AUTH_APOLLON_USERNAME_PASSWORD_FORM_BLACKLIST_EMAIL_PATTERNS: ".*(@mjl.gouv.fr)$"
+    KC_SPI_AUTHENTICATOR_AUTH_APOLLON_USERNAME_PASSWORD_FORM_POSEIDON_URL: "https://www3.preprod.infogreffe.fr/services/user-service/api/users"
+    KC_SPI_AUTHENTICATOR_AUTH_APOLLON_USERNAME_PASSWORD_FORM_POSEIDON_USERNAME: "not_used"  # inutile en prod
+    KC_SPI_AUTHENTICATOR_AUTH_APOLLON_USERNAME_PASSWORD_FORM_POSEIDON_PASSWORD: "not_used"  # inutile en prod
+    KC_SPI_AUTHENTICATOR_AUTH_APOLLON_USERNAME_PASSWORD_FORM_CODE_TVA_URL: "https://www.preprod-api.infogreffe.fr/hermes/paniers/api/v1/tva/code"
+    KC_SPI_AUTHENTICATOR_AUTH_APOLLON_USERNAME_PASSWORD_FORM_MS_COMPTE_CLIENT_BASE_URL: "http://apollon-compte-client.apollon.svc.cluster.local:8080/v1/comptes_clients"
+    ## new keycloak version
+    KC_DB_URL: "jdbc:postgresql://psqlf-dmp-infogreffe-frc-preprod-apollon.postgres.database.azure.com:5432/keycloak?sslmode=verify-ca&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory"
+    KC_DB_USERNAME: claranet
+    KC_DB_URL_DATABASE: keycloak
+    KEYCLOAK_ADMIN: admin
+    APPLICATIONINSIGHTS_CONNECTION_STRING: "InstrumentationKey=6c8ee613-097c-409a-96db-8ef6e2d5a3b3;IngestionEndpoint=https://francecentral-0.in.applicationinsights.azure.com/;LiveEndpoint=https://francecentral.livediagnostics.monitor.azure.com/"
+
+    APPLICATIONINSIGHTS_ROLE_NAME: "apollon-keycloak-pprd"
+    AZDEV: claranet
+    DEBUG: true
+    DEBUG_PORT: "*:8100"
+
+  secrets:
+      # SB HERMES!
+    - envKey: KC_DB_URL_HOST
+      secretKey: KEYCLOAK_DATABASE_HOST
+    - envKey: KC_SPI_EMAIL_TEMPLATE_APOLLON_MAIL_SENDER_CONNECTION_STRING
+      secretKey: KEYCLOAK_SERVICEBUS_HERMES_CONN_STR
+    - envKey: KC_SPI_EMAIL_TEMPLATE_APOLLON_MAIL_SENDER_QUEUE_NAME
+      secretKey: KEYCLOAK_SERVICEBUS_HERMES_TOPIC_PUBLIC_EMAIL_TRANS_ENVOI
+    - envKey: KC_DB_PASSWORD
+      secretKey: DATABASE_PASSWORD
+    - envKey:  KEYCLOAK_ADMIN_PASSWORD
+      secretKey: KEYCLOAK_CONSOLE_ADMIN_PASSWORD
+
+  probe:
+    liveness:
+      httpPath: /admin
+    startup:
+      httpPath: /admin
