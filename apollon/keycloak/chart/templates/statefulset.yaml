@@ -1,0 +1,121 @@
+{{- if .Values.deploy_statefulset.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "api.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "api.fullname" . }}
+    helm.sh/chart: {{ include "api.fullname" . }}
+    app.kubernetes.io/instance: {{ include "api.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "api.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "api.fullname" . }}
+        app.kubernetes.io/instance: {{ include "api.fullname" . }}
+        app: {{ include "api.fullname" . }}
+        aadpodidbinding: {{ .Values.aadPodIdBinding }}
+    spec:
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{- .Values.nodeSelector | toYaml | nindent 8 }}
+      {{- end }}
+      imagePullSecrets:
+      {{- if .Values.initContainers }}
+      initContainers:
+      {{- toYaml .Values.initContainers | nindent 8}}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+            {{- if .Values.resources.requests }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: secrets-store-inline
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+            {{- range .Values.extraVolumes }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- range .Values.extraVolumesFromSecrets }}
+            {{- if .mount.enabled }}
+            - name: {{ .name }}
+              mountPath: {{ .mount.path }}
+              {{- if .mount.enabled }}
+              subPath: {{ .mount.subPath }}
+              {{- end }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+          env:
+          {{- range $key, $val := .Values.env }}
+            - name : "{{ $key }}"
+              value: "{{ $val }}"
+          {{- end }}
+          {{- $rootValues := .Values }}
+          {{- range $secret := .Values.secrets }}
+            - name : "{{ $secret.envKey }}"
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default $rootValues.featureTeamName $secret.secretCustomName }}
+                  key:  {{ $secret.secretKey }}
+          {{- end }}
+          {{- if .Values.probe.liveness.enabled }}
+          livenessProbe:
+            enabled: {{ .Values.probe.liveness.enabled }}
+            httpGet:
+              path: {{ .Values.probe.liveness.httpPath }}
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 2
+            timeoutSeconds: 5 # todo check it again
+          {{- end }}
+          {{- if .Values.probe.startup.enabled }}
+          # 160 seconds to bootstrap
+          startupProbe:
+            enabled: {{ .Values.probe.startup.enabled }}
+            httpGet:
+              path: {{ .Values.probe.startup.httpPath }}
+              port: 8080
+            initialDelaySeconds: 120
+            failureThreshold: 8
+            periodSeconds: 20
+            timeoutSeconds: 3 # todo check it
+          {{- end }}
+      volumes:
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ .Values.featureTeamName }}
+        {{- range .Values.extraVolumes }}
+        - name: {{ .name }}
+          {{- toYaml .volume | nindent 10 }}
+        {{- end }}
+        {{- range .Values.extraVolumesFromSecrets }}
+        - name: {{ .name }}
+          secret:
+            items:
+              - key: {{ .secretItem }}
+                path: {{ .secretItemPath }}
+            optional: false
+            secretName: {{ .secretName }}
+        {{- end }}
+{{- end }}

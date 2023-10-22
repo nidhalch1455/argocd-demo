@@ -1,6 +1,6 @@
 dependencies:
 - name: generic_chart
-  repository: file://../../chart
+  repository: file://../chart
   version: 0.1.0
 digest: sha256:aac21151e7b440171ab5492e667598b75e99799746aa6bf09efd6615d2efa9b2
 generated: "2023-01-19T13:29:24.173207634+01:00"

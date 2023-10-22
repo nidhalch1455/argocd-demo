@@ -2,4 +2,4 @@ dependencies:
 - name: generic_chart
   alias: keycloak
   version: 0.1.0
-  repository: file://../../chart
+  repository: file://../chart
